@@ -21,7 +21,11 @@ def fuel_cost_crab_eng(positions, target):
     return sum(map(lambda p: ((abs(p - target) * (abs(p - target) + 1)) / 2), positions))
 
 def bruteforce(positions):
-    # TODO : There certainly should be a better way to do this.
+    """
+    Le résultat est forcément floor(moyenne) ou ceil(moyenne).
+    J'ai une démonstration véritablement merveilleuse pour cette proposition,
+    mais ce commentaire est trop petit pour la contenir
+    """
     mini, maxi = min(positions), max(positions)
     costs = { pos :  fuel_cost_crab_eng(positions, pos) for pos in range(mini, maxi+1)}
     minv = min(costs.values())
