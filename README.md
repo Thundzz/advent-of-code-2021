@@ -9,3 +9,7 @@ My solutions to advent of code 2021 in :
 
 ## Basins from day 9:
 ![Basins](./img/basins.png)
+
+
+## Origami code produced after folding everything in day 13::
+![Code](./img/folded_origami.png)
