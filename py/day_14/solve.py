@@ -1,5 +1,7 @@
 import numpy as np
 from operator import itemgetter
+from collections import defaultdict, Counter
+from itertools import groupby
 import re
 
 def parse_input(filename):
@@ -35,13 +37,37 @@ def polymerize(base_molecule, rules, increments):
         polymer = insertion_points(polymer, rules)
     return polymer
 
+def virtual_polymerize(base_molecule, rules, increments):
+    syllables = Counter([base_molecule[i:i+2] for i in range(len(base_molecule) - 1)])
+    developed_rules  = {
+        k : [k[0] + v, v + k[1]]
+        for k, v in rules
+    }
+    for _ in range(increments):
+        new_syllables = defaultdict(lambda: 0)
+        for syllable, count in syllables.items():
+            for generated in developed_rules[syllable]:
+                # print(generated)
+                new_syllables[generated] += count
+        syllables = new_syllables
+    char_counts = []
+    for c, items in groupby(sorted([(c, count) for (syl, count) in syllables.items() for c in syl]), key=itemgetter(0)):
+        total_count = sum(map(itemgetter(1), items))
+        char_counts.append((c, np.ceil(total_count /2)))
+
+    l = sorted(char_counts, key=itemgetter(1))
+    return  l[-1][1] - l[0][1]
+
+
 def main():
     base_molecule, rules = parse_input("input.txt")
-    polymer = polymerize(base_molecule, rules, 10)
-    from collections import Counter
-    c = Counter(polymer)
-    _, counts = zip(*c.most_common())
-    print(counts[0]  - counts[-1])
+    # polymer = polymerize(base_molecule, rules, 10)
+    # from collections import Counter
+    # c = Counter(polymer)
+    # _, counts = zip(*c.most_common())
+    # print(counts[0]  - counts[-1])
+    polymer = virtual_polymerize(base_molecule, rules, 40)
+    print(polymer)
 
 if __name__ == '__main__':
     main()
