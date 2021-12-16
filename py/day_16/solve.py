@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
-import numpy as np
+from operator import mul
+from functools import reduce
 
 @dataclass
 class Packet:
@@ -112,6 +113,9 @@ def get_version_sum(packet):
         s += get_version_sum(p)
     return s
 
+def product(l):
+    return reduce(mul, l)
+
 def evaluate(packet):
     if packet.packet_type == PacketType.LITERAL:
         return packet.value
@@ -131,7 +135,7 @@ def evaluate(packet):
         return sum(evaluated_children)
 
     if packet.packet_type == PacketType.PRODUCT:
-        return np.prod(evaluated_children)
+        return product(evaluated_children)
 
     if packet.packet_type == PacketType.MIN:
         return min(evaluated_children)
