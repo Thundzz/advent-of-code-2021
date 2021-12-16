@@ -142,12 +142,8 @@ def evaluate(packet):
     if packet.packet_type == PacketType.MAX:
         return max(evaluated_children)
 
-import pprint
-import json
-
 def main():
     message = parse_input("input.txt")
-    # message = "8A004A801A8002F478"
     binmsg = hex_to_bin(message)
     p, _ = parse_packet(list(binmsg))
     s = get_version_sum(p)
