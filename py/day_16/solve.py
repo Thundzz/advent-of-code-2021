@@ -78,7 +78,6 @@ def parse_operator(binmsg):
     length_type_id = binmsg[0]
     binmsg = binmsg[1:]
     TOTAL_LENGTH_LENGTH_TYPE = "0"
-    SUBPACKET_NUMBER_LENGTH_TYPE = "0"
     if length_type_id == TOTAL_LENGTH_LENGTH_TYPE:
         parsing_function, LENGTH_SIZE = parse_length, 15
     else:
