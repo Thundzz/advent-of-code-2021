@@ -1,3 +1,24 @@
+from dataclasses import dataclass
+from enum import Enum
+import numpy as np
+
+@dataclass
+class Packet:
+    version: int
+    packet_type: int
+    subpackets: list
+    value: int
+
+class PacketType(Enum):
+    SUM = 0
+    PRODUCT = 1
+    MIN = 2
+    MAX = 3
+    LITERAL = 4
+    GT = 5
+    LT = 6
+    EQ = 7
+
 def parse_input(filename):
     with open(filename) as file:
         return file.read().strip()
@@ -21,21 +42,20 @@ def flatten(t):
     return [item for sublist in t for item in sublist]
 
 def parse_literal(binmsg):
-    print("parse_literal", binmsg)
+    # print("parse_literal", binmsg)
     accumulator = []
     STOP_READING_BIT = "0"
     while True:
         chunk = binmsg[:5]
-        # print(chunk)
         binmsg = binmsg[5:]
         accumulator.append(list(chunk)[1:])
         if chunk[0] == STOP_READING_BIT:
             break
-    print("--> parse_literal", binmsg)
+    # print("--> parse_literal", binmsg)
     return to_int(flatten(accumulator)), binmsg
 
 def parse_length(binmsg, length):
-    print("parse_length", binmsg)
+    # print("parse_length", binmsg)
     tmpbinmsg = binmsg[:length]
     binmsg = binmsg[length:]
     packets = []
@@ -49,11 +69,11 @@ def parse_packet_number(binmsg, length):
     for i in range(length):
         packet, binmsg = parse_packet(binmsg)
         accumulator.append(packet)
-    return packet, binmsg
+    return accumulator, binmsg
 
 
 def parse_operator(binmsg):
-    print("parse_operator", binmsg)
+    # print("parse_operator", binmsg)
     length_type_id = binmsg[0]
     binmsg = binmsg[1:]
     TOTAL_LENGTH_LENGTH_TYPE = "0"
@@ -65,35 +85,73 @@ def parse_operator(binmsg):
     chunk = binmsg[:LENGTH_SIZE]
     binmsg = binmsg[LENGTH_SIZE:]
     length = to_int(chunk)
-    print("length", length)
+    # print("length", length)
     subpackets, binmsg = parsing_function(binmsg, length)
     return subpackets, binmsg
 
 
 def parse_packet(binmsg):
-    print("parse_packet", binmsg)
+    # print("parse_packet", binmsg)
     MSG_TYPE_LITERAL=4
     version = parse_version(binmsg[:3])
     binmsg = binmsg[3:]
     msgtype = parse_type(binmsg[:3])
     binmsg = binmsg[3:]
-    print("parse_packet", version, msgtype)
-    if msgtype == MSG_TYPE_LITERAL:
+    # print("parse_packet", version, msgtype)
+    if msgtype == PacketType.LITERAL.value:
         literal, binmsg = parse_literal(binmsg)
-        print("literal", literal, binmsg),
-        return literal, binmsg
+        return Packet(version=version, packet_type=PacketType(msgtype), subpackets=[], value=literal), binmsg
     else:
         subpackets, binmsg = parse_operator(binmsg)
-        return subpackets, binmsg
+        return Packet(version=version, packet_type=PacketType(msgtype), subpackets=subpackets, value=None), binmsg
 
+
+def get_version_sum(packet):
+    s = packet.version
+    for p in packet.subpackets:
+        s += get_version_sum(p)
+    return s
+
+def evaluate(packet):
+    if packet.packet_type == PacketType.LITERAL:
+        return packet.value
+
+    comp_funcs = {
+        PacketType.GT: lambda x, y: 1 if x > y else 0,
+        PacketType.LT: lambda x, y: 1 if x < y else 0,
+        PacketType.EQ: lambda x, y: 1 if x == y else 0
+    }
+
+    evaluated_children = list(map(evaluate, packet.subpackets))
+    if packet.packet_type in comp_funcs:
+        lhs, rhs = evaluated_children
+        return comp_funcs[packet.packet_type](lhs, rhs)
+
+    if packet.packet_type == PacketType.SUM:
+        return sum(evaluated_children)
+
+    if packet.packet_type == PacketType.PRODUCT:
+        return np.prod(evaluated_children)
+
+    if packet.packet_type == PacketType.MIN:
+        return min(evaluated_children)
+
+    if packet.packet_type == PacketType.MAX:
+        return max(evaluated_children)
+
+import pprint
+import json
 
 def main():
-    message = parse_input("simple_literal.txt")
-    message = "EE00D40C823060"
+    message = parse_input("input.txt")
+    # message = "8A004A801A8002F478"
     binmsg = hex_to_bin(message)
+    p, _ = parse_packet(list(binmsg))
+    s = get_version_sum(p)
+    print(s)
+    e = evaluate(p)
+    print(e)
 
-    # binmsg = list("10010000010")
-    parse_packet(list(binmsg))
 
 if __name__ == '__main__':
     main()
