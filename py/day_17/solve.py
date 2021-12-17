@@ -1,12 +1,5 @@
 import re
-
-def sign(n):
-    if n < 0:
-        return -1
-    if n == 0:
-        return 0
-    else:
-        return 1
+from functools import cache
 
 def parse_line(content):
     pattern = r'target area: x=(-?\d+)..(-?\d+), y=(-?\d+)..(-?\d+)'
@@ -17,33 +10,42 @@ def parse_input(filename):
     with open(filename) as file:
         return parse_line(file.read().strip())
 
-def trajectory(vx, vy, bounds, steps=10000):
-    x, y = 0, 0
+@cache
+def fy(vy0, n):
+    """
+    Computed by hand
+    """
+    return n*(2*vy0 + 1 -n) / 2
 
-    points = []
-    for _ in range(steps):
-        points.append((x, y))
-        print(x, y)
-        x += vx
-        y += vy
-        if vx > 0:
-            vx -= 1
-        elif vx < 0:
-            vx += 1
-        vy -= 1
-    points.append((x, y))
+@cache
+def fx(vx0, n):
+    """
+    Computed by hand
+    """
+    if n>= vx0:
+        return vx0*(vx0+1)/2
+    else:
+        return n*(2*vx0 + 1 -n) / 2
 
-    print(x, y, vx, vy)
-    return False, points
+def solve_second_star(xs, xe, ys, ye):
+    vel = set()
+    for n in range(200):
+        for vx in range(300):
+            for vy in range(-100, 200):
+                if xs <= fx(vx,n) <= xe  and ys <= fy(vy, n) <= ye:
+                    vel.add((vx, vy))
+    return len(vel)
 
 def main():
-    xs, xe, ys, ye = parse_input("test.txt")
-    traj = trajectory()
-    import matplotlib.pyplot as plt
-    xs, ys = zip(*traj)
-    plt.scatter(xs, ys)
-    plt.show()
-    print(xs, xe, ys, ye)
+    """
+    First star solved using the following Desmos graph:
+    https://www.desmos.com/calculator/pd8rlbrut3
+
+    Second star limits guessed using the same desmos graph.
+    """
+    xs, xe, ys, ye = parse_input("input.txt")
+    num = solve_second_star(xs, xe, ys, ye)
+    print(num)
 
 if __name__ == '__main__':
     main()
