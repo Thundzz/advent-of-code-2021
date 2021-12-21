@@ -1,8 +1,9 @@
 from itertools import product
 from functools import lru_cache
 from operator import itemgetter
-from collections import Counter
+from collections import Counter, defaultdict
 import numpy as np
+import heapq
 
 def totuple(m):
     if m.shape == (1, 3):
@@ -12,7 +13,7 @@ def totuple(m):
         tuple(np.array(m[1]).reshape(-1)),
         tuple(np.array(m[2]).reshape(-1))
     )
-
+@lru_cache
 def all_rotations():
     xrot = np.matrix([[1, 0, 0], [0, 0,-1],[0,1,0]])
     yrot = np.matrix([[0, 0, 1], [0, 1, 0],[-1,0,0]])
@@ -39,49 +40,119 @@ def parse_input(filename):
         scanners[idx] = parse_raw_scanner(raw_scanner.strip())
     return scanners
 
-def most_common_count(axis, coords1, coords2):
+def sub(tupl1, tupl2):
+    return tuple(np.array(tupl1) - np.array(tupl2))
+
+def find_offset(coords1, coords2):
     n = len(coords1)
     m = len(coords2)
-    xs1 = list(map(itemgetter(axis), coords1))
-    xs2 = list(map(itemgetter(axis), coords2))
-    mat = np.zeros((n, m), dtype=int)
     diffs = []
     for i, j in product(range(n), range(m)):
-        diff = xs1[i] - xs2[j]
-        mat[i, j] =  diff
+        diff = sub(coords1[i], coords2[j])
         diffs.append(diff)
 
     c = Counter(diffs)
-    return c.most_common(1)[0][1]
+    most_common, count = c.most_common(1)[0]
+    if count >= 12:
+        print("found offset", most_common, count)
+        return (most_common, count)
+    else:
+        return None, None
 
 def try_find_match(sc1, sc2):
-    _, sc1 = sc1
-    _, sc2 = sc2
     rotations = all_rotations()
     for rot in rotations:
-
         rotsc2 = [totuple(rot.dot(coord)) for coord in sc2]
-        mcc_x = most_common_count(0, sc1, rotsc2)
-        mcc_y = most_common_count(1, sc1, rotsc2)
-        mcc_z = most_common_count(2, sc1, rotsc2)
-        if mcc_x >= 12 and mcc_y >= 12 and mcc_z >= 12:
-            print(rot)
+        offset, count = find_offset(sc1, rotsc2)
+        if offset:
+            return rot, offset
+    return None, None
 
-def diffprint(i, j, s1, s2):
-    print(i, j)
-    return s1[i]-s2[j]
+def dijkstra(graph, st):
+    distances = {v: float('inf') for v in graph}
+    distances[st] = 0
+    parents = {st: st}
+    pq = [(0, st)]
+    while len(pq) > 0:
+        d, current = heapq.heappop(pq)
+        if d > distances[current]:
+            continue
+        for neighbor, weight in graph[current].items():
+            distance = d + weight
+            if distance < distances[neighbor]:
+                parents[neighbor] = current
+                distances[neighbor] = distance
+                heapq.heappush(pq, (distance, neighbor))
 
+    return distances, parents
+
+def as_graph(transforms):
+    graph = defaultdict(lambda: {})
+    for (s, d) in transforms.keys():
+        graph[s][d] = 1
+    return dijkstra(graph, 0)
+
+def find_path(parents, start, target):
+    path = []
+    current = target
+    while current != start:
+        path.append(current)
+        current = parents[current]
+    path.append(start)
+    return path
+
+def displace(coords, rot, offset):
+    return [
+        totuple(rot.dot(coord) + np.array(offset))
+        for coord in coords
+    ]
+
+def compute_absolute_coords(scanners, transforms, paths):
+    all_beacons = set()
+    all_scanners = set()
+    for scid, sc in scanners.items():
+        path = paths[scid]
+        steps = [(path[i], path[i+1]) for i in range(len(path)-1)]
+        coords = sc
+        scanner = [(0,0,0)]
+        for step in steps:
+            i, j = step
+            rot, offset = transforms[j, i]
+            coords = displace(coords, rot, offset)
+            scanner = displace(scanner, rot, offset)
+
+        all_beacons = all_beacons | set(coords)
+        all_scanners = all_scanners | set(scanner)
+    return all_beacons, all_scanners
+
+def manhattan(t1, t2):
+    x1, y1, z1 = t1
+    x2, y2, z2 = t2
+    return abs(x1-x2) + abs(y1-y2) + abs(z1-z2)
 
 def solve(scanners):
-    sc1, sc2, *others = scanners.items()
-    try_find_match(sc1, sc2)
+    transforms = {}
+    n = len(scanners)
+    for sci1 in range(n):
+        for sci2 in range(n):
+            if sci1 != sci2:
+                sc1 = scanners[sci1]
+                sc2 = scanners[sci2]
+                rot, offset = try_find_match(sc1, sc2)
+                if offset:
+                    transforms[(sci1, sci2)] = (rot, offset)
+    graph, parents = as_graph(transforms)
+    paths = { i: find_path(parents,0, i) for i in range(n) }
+    all_coords, all_scanners = compute_absolute_coords(scanners, transforms, paths)
+    print(len(all_coords))
+    print("max distance", max([manhattan(sc1, sc2) for sc1, sc2 in product(all_scanners, repeat=2)]))
+
 
 def main():
-    scanners = parse_input("test.txt")
+    scanners = parse_input("input.txt")
     solve(scanners)
 
 if __name__ == '__main__':
     main()
-    # matrices = all_rotations()
 
 
