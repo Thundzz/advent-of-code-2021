@@ -27,7 +27,7 @@ def convolve(mat, kernel, background):
             res = 0
             for ii in [-1, 0, 1]:
                 for jj in [-1, 0,  1]:
-                    if 0 <= i + ii < n and 0<= j +jj < m:
+                    if 1 <= i + ii < n and 1<= j +jj < m:
                         res += mat[i + ii, j  + jj] * kernel[ii+1,jj+1]
                     else:
                         res += background * kernel[ii+1,jj+1]
@@ -51,7 +51,7 @@ def enhance(img, algorithm, background):
     conv = convolve(mat, kernel, background)
     # print(conv)
     res = vmapping(conv)
-    return res, to_int(algorithm[background])
+    return res, 1- background
 
 def to_str(m):
     return (
@@ -72,10 +72,12 @@ def plot(res):
 def main():
     algo, img = parse_input("input.txt")
     background = 0
-    for i in range(2):
+    for i in range(50):
+        print(i)
         # plot(img)
         img, background = enhance(img, algo, background)
-    # plot(img)
+        print(i, background)
+    plot(img)
     # img, background = enhance(img, algo, background)
     # plot(img)
     print(len(np.argwhere(img == 1)))
