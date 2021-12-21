@@ -32,7 +32,6 @@ def convolve(mat, kernel, background):
                     else:
                         res += background * kernel[ii+1,jj+1]
             new_img[i, j] = res
-            # new_img[i, j] = samedim_convolve(mat[i-1:i+2, j-1:j+2], kernel)
     return new_img
 
 def enhance(img, algorithm, background):
@@ -49,19 +48,8 @@ def enhance(img, algorithm, background):
         mat = np.ones((n+2, m+2), dtype=int)
     mat[1:n+1, 1:m+1] = img
     conv = convolve(mat, kernel, background)
-    # print(conv)
     res = vmapping(conv)
-    return res, 1- background
-
-def to_str(m):
-    return (
-        str(m)
-            .replace("[", "")
-            .replace("]", "")
-            .replace(" ", "")
-            .replace("1", "#")
-            .replace("0", ".")
-    )
+    return res, vmapping(511 if background == 1 else 0)
 
 def plot(res):
     import matplotlib.pyplot as plt
@@ -73,13 +61,7 @@ def main():
     algo, img = parse_input("input.txt")
     background = 0
     for i in range(50):
-        print(i)
-        # plot(img)
         img, background = enhance(img, algo, background)
-        print(i, background)
-    plot(img)
-    # img, background = enhance(img, algo, background)
-    # plot(img)
     print(len(np.argwhere(img == 1)))
 
 if __name__ == '__main__':
