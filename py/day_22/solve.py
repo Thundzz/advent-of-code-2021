@@ -1,5 +1,39 @@
 import re
 from itertools import product
+from dataclasses import dataclass
+from collections import Counter
+from math import prod
+
+@dataclass(init=True, repr=True, eq=True, frozen=True)
+class Cuboid:
+    xmin: int
+    xmax: int
+    ymin: int
+    ymax: int
+    zmin: int
+    zmax: int
+
+    def intersects(self, other):
+        b = (
+            self.xmin <= other.xmax and self.xmax >= other.xmin
+            and self.ymin <= other.ymax and self.ymax >= other.ymin
+            and self.zmin <= other.zmax and self.zmax >= other.zmin
+        )
+        return b
+
+    def intersection(self, other):
+        return Cuboid(
+            max(self.xmin, other.xmin), min(self.xmax, other.xmax),
+            max(self.ymin, other.ymin), min(self.ymax, other.ymax),
+            max(self.zmin, other.zmin), min(self.zmax, other.zmax)
+        )
+    def volume(self):
+        return prod([
+            self.xmax - self.xmin + 1,
+            self.ymax - self.ymin + 1,
+            self.zmax - self.zmin + 1
+        ])
+
 
 def parse_line(l):
     pattern = r'(on|off) x=(-?\d+)\.\.(-?\d+),y=(-?\d+)\.\.(-?\d+),z=(-?\d+)\.\.(-?\d+)'
@@ -25,6 +59,24 @@ def procedure(instructions):
                 on_cubes = on_cubes - set(cs)
     return on_cubes
 
+def solve_large(instructions):
+    """
+    Keep track of intersections and their corresponding volume modifiers
+    to compensate final volume
+    """
+    final_volumes = Counter()
+    for idx, instr in enumerate(instructions):
+        to_update = Counter()
+        onoff, xmin, xmax, ymin, ymax, zmin, zmax = instr
+        cuboid = Cuboid(xmin, xmax, ymin, ymax, zmin, zmax)
+        if onoff:
+            to_update[cuboid] += 1
+        for other, volume_modifier in final_volumes.items():
+            if cuboid.intersects(other):
+                to_update[cuboid.intersection(other)] -= volume_modifier
+        final_volumes.update(to_update)
+    return final_volumes
+
 def parse_input(filename):
     with open(filename) as file:
         return [parse_line(l.strip()) for l in file.readlines()]
@@ -33,7 +85,9 @@ def main():
     instructions = parse_input("input.txt")
     cubes = procedure(instructions)
     print(len(cubes))
-    # print(instructions)
+    volumes = solve_large(instructions)
+    s = sum(cuboid.volume() * mod for cuboid, mod in volumes.items())
+    print(s)
 
 if __name__ == '__main__':
     main()
