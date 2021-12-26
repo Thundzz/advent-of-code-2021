@@ -42,7 +42,6 @@ def parse(text):
 
 def build_graph(edges):
     graph = defaultdict(lambda: {})
-    print(edges)
     for v1, v2 in edges:
         graph[v1][v2] = 1
         graph[v2][v1] = 1
@@ -52,7 +51,7 @@ def build_graph(edges):
 def dijkstra(graph, st):
     distances = {v: float('inf') for v in graph}
     distances[st] = 0
-
+    parents = {st: st}
     pq = [(0, st)]
     while len(pq) > 0:
         d, current = heapq.heappop(pq)
@@ -61,19 +60,31 @@ def dijkstra(graph, st):
         for neighbor, weight in graph[current].items():
             distance = d + weight
             if distance < distances[neighbor]:
+                parents[neighbor] = current
                 distances[neighbor] = distance
                 heapq.heappush(pq, (distance, neighbor))
 
-    return distances
+    return distances, parents
 
-edges = parse(graphText)
-graph = build_graph(edges)
-print(graph)
+def find_path(parents, start, target):
+    path = []
+    current = target
+    while current != start:
+        path.append(current)
+        current = parents[current]
+    path.append(start)
+    return path
 
-distance = {
-    (v1, v2): distance
-    for v1 in graph.keys()
-    for v2, distance in dijkstra(graph, v1).items()
-}
 
-print(distance[("A2", "C2")])
+def compute_paths():
+    edges = parse(graphText)
+    graph = build_graph(edges)
+
+    paths = {}
+    for v1 in graph.keys():
+        dijk_dist, parents = dijkstra(graph, v1)
+        for v2, distance in dijk_dist.items():
+            path = find_path(parents, v1, v2)
+            paths[(v1, v2)] = list(reversed(path))
+    return paths
+paths = compute_paths()
