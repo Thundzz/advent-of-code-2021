@@ -87,4 +87,3 @@ def compute_paths():
             path = find_path(parents, v1, v2)
             paths[(v1, v2)] = list(reversed(path))
     return paths
-paths = compute_paths()
