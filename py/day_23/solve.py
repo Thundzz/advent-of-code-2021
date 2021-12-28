@@ -1,4 +1,6 @@
 import helper as hlp
+from collections import defaultdict
+from functools import lru_cache
 """
 #0123456789a#
 #hhhhhhhhhhh#
@@ -10,38 +12,41 @@ let's denote hallway places h0 to ha
 and rooms A1, A2, B1, B2, C1, C2, D1, D2
 """
 
-def other_room(room):
-    return room[0] + str((3 ^ int(room[1])))
-
-def other_amphipod(amphipod):
-    return amphipod[0] + ("x" if amphipod[1] == "y" else "y")
+def amphipod_color_rooms(slots, amphipod):
+        return [s for s in slots if amphipod[0] == s[0]]
 
 class GameState:
     hallway = list(map(lambda x: "H" + str(x), range(1,10))) + ["HA"]
     rooms = ["A1", "A2", "B1", "B2", "C1", "C2", "D1", "D2"]
     paths = hlp.compute_paths()
+    slots = frozenset(hallway + rooms)
+
+    def clone(self):
+        return GameState([ (v, k) for k, v in self.map.items() if v is not None])
 
     def __init__(self, positions):
-        self.slots = set(self.hallway + self.rooms) # CONST
+        _, position_values = zip(*positions)
         self.allowed_dests = set(self.slots) - {"H2", "H4", "H6", "H8"} # CONST
-        self.positions = dict(positions)
-        self.possible_empty_dests = self.allowed_dests - set(self.positions.values())
-        self.currently_empty = self.slots - set(self.positions.values())
+        self.currently_empty = self.slots - set(position_values)
         self.history = []
+        self.map = defaultdict(lambda: None, { v: k for k, v in positions})
 
     def signature(self):
-        return tuple(sorted(self.positions.items()))
+        return tuple([(k, v) for k, v in self.map.items() if v])
 
     def possible_moves(self):
         moves = []
-        for amphipod, curloc in self.positions.items():
-            for tarloc in self.possible_empty_dests:
-                if self.can_move(amphipod, curloc, tarloc):
-                    moves.append((amphipod, curloc, tarloc))
+        for curloc in self.slots:
+            amphipod = self.map[curloc]
+            if amphipod:
+                for tarloc in self.slots:
+                    if tarloc != curloc and self.can_move(amphipod, curloc, tarloc):
+                        moves.append((amphipod, curloc, tarloc))
         return moves
 
     def is_complete(self):
-        return all(loc[0] == amphi[0] for amphi, loc in self.positions.items())
+        to_check = ["A1", "A2", "B1", "B2", "C1", "C2", "D1", "D2"]
+        return all(self.map[loc] == loc[0] for loc in to_check)
 
     def total_cost(self):
         cost = 0
@@ -51,54 +56,53 @@ class GameState:
         return cost
 
     def can_move(self, amphipod, curloc, tarloc):
-        # TODO : finish this function. Cleanup. Fix logic.
-        # if amphipod and target location are the same color:
-        could_be_useful = (
-            amphipod[0] != curloc[0]
-            or (
-                amphipod[0] == curloc[0] == tarloc[0] and tarloc[1] > curloc[1]
-            )
-            or (
-                self.positions[other_amphipod(amphipod)][0] != amphipod[0]
-            )
-        )
-        target_allowed = tarloc in self.possible_empty_dests
+        target_allowed = tarloc in self.allowed_dests
         in_hallway = curloc[0] == "H"
-        path_is_free = all(c in self.currently_empty for c in self.paths[(curloc, tarloc)][1:])
-        room_is_safe = tarloc[0] == "H" or (
+        not_intra_hallway_or_room_to_room = curloc[0] != tarloc[0]
+        path_is_free = all(self.map[c] is None for c in self.paths[(curloc, tarloc)][1:])
+        correct_rooms = amphipod_color_rooms(self.slots, amphipod)
+        empty_correct_rooms = [r[1] for r in correct_rooms if self.map[r] is None]
+        room_is_good = tarloc[0] == "H" or (
             tarloc[0] == amphipod[0]
-            and
-            not any(loc == other_room(tarloc) for other, loc, in self.positions if other[0] != amphipod[0])
+            and tarloc[1] ==  "?" if not empty_correct_rooms else max(empty_correct_rooms)
+            and all(self.map[room] is None or self.map[room] == room[0] for room in correct_rooms)
         )
-        no_bis_repetita = (amphipod, curloc, tarloc) not in self.history
-        return no_bis_repetita and target_allowed and could_be_useful and path_is_free and room_is_safe and (
-            not in_hallway
-            or (in_hallway and tarloc[0] == amphipod[0] )
-            )
+        should_stay_locked = (
+            curloc[0] == amphipod
+            and all(self.map[room] == room[0] for room in correct_rooms if room[1] > curloc[1])
+        )
+        return not_intra_hallway_or_room_to_room and target_allowed and path_is_free and room_is_good and not should_stay_locked
 
     def play(self, move):
         amphipod, curloc, tarloc = move
-        self.positions[amphipod] = tarloc
-        self.possible_empty_dests = self.allowed_dests - set(self.positions.values())
-        self.currently_empty = self.slots - set(self.positions.values())
+        self.map[tarloc] = amphipod
+        self.map[curloc] = None
         self.history.append(move)
     def unplay(self, move):
         assert self.history[-1] == move
         amphipod, curloc, tarloc = move
-        self.positions[amphipod] = curloc
-        self.possible_empty_dests = self.allowed_dests - set(self.positions.values())
-        self.currently_empty = self.slots - set(self.positions.values())
+        self.map[tarloc] = None
+        self.map[curloc] = amphipod
         self.history.pop()
 
 def solve(positions):
     game_state = GameState(positions)
     seen_positions = { }
     def recurse():
-        if game_state.total_cost() >= 14000:
+        print(len(seen_positions))
+        if game_state.history[:2] == [("By", "C1", "H3"), ("Cx", "B1", "C1")]:
+            print(game_state.total_cost(), game_state.positions, game_state.history)
+        if game_state.total_cost() >= 14000 or len(game_state.history) >= 10:
             return
+
         for move in game_state.possible_moves():
             game_state.play(move)
             current_cost = game_state.total_cost()
+            signature = game_state.signature()
+            # print(signature)
+            if signature in seen_positions and seen_positions[signature] < current_cost:
+                game_state.unplay(move)
+                continue
             if game_state.is_complete():
                 print("solution found, cost:", game_state.total_cost())
                 print(game_state.history)
@@ -106,32 +110,46 @@ def solve(positions):
             if current_cost >= 14000:
                 game_state.unplay(move)
                 continue
-            signature = game_state.signature()
-            if signature in seen_positions and seen_positions[signature] <= current_cost:
-                game_state.unplay(move)
-                continue
+
             seen_positions[signature] = current_cost
             recurse()
             game_state.unplay(move)
     recurse()
 
-
+def gen_all_states(initial_state):
+    q = [initial_state]
+    seen = set()
+    transitions = defaultdict(lambda :{})
+    while q:
+        state = q.pop()
+        state_sign = state.signature()
+        print(len(transitions), len(q), len(seen))
+        if state_sign not in seen:
+            for move in state.possible_moves():
+                state.play(move)
+                next_sign = state.signature()
+                if not next_sign in seen:
+                    q.append(state.clone())
+                transitions[state_sign][next_sign] = move
+                state.unplay(move)
+            seen.add(state_sign)
 
 def main():
     inpt = {
-        ("Bx", "A1"),
-        ("Ax", "A2"),
-        ("Cx", "B1"),
-        ("Dx", "B2"),
-        ("By", "C1"),
-        ("Cy", "C2"),
-        ("Dy", "D1"),
-        ("Ay", "D2")
+        ("B", "A1"),
+        ("A", "A2"),
+        ("C", "B1"),
+        ("D", "B2"),
+        ("B", "C1"),
+        ("C", "C2"),
+        ("D", "D1"),
+        ("A", "D2")
     }
 
     # gs = GameState(inpt)
     # moves = gs.possible_moves()
-    solve(inpt)
+    # solve(inpt)
+    gen_all_states(GameState(inpt))
     # print(moves)
 
 if __name__ == '__main__':
