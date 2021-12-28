@@ -1,7 +1,7 @@
 import unittest
 from solve import GameState
 
-class TestSnailFishOps(unittest.TestCase):
+class TestDay23(unittest.TestCase):
 
     def test_can_move_c_amphipod_to_destination(self):
         positions = {
