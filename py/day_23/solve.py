@@ -11,7 +11,7 @@ from functools import lru_cache
 let's denote hallway places h0 to ha
 and rooms A1, A2, B1, B2, C1, C2, D1, D2
 """
-
+@lru_cache(maxsize=None)
 def amphipod_color_rooms(slots, amphipod):
         return [s for s in slots if amphipod[0] == s[0]]
 
@@ -20,7 +20,7 @@ class GameState:
     rooms = ["A1", "A2", "B1", "B2", "C1", "C2", "D1", "D2"]
     paths = hlp.compute_paths()
     slots = frozenset(hallway + rooms)
-    cost_by_type = { "A" : 1, "B" : 10, "C" : 1000, "D" : 1000 }
+    cost_by_type = { "A" : 1, "B" : 10, "C" : 100, "D" : 1000 }
 
     def clone(self):
         return GameState([(v, k) for k, v in self.map.items() if v is not None])
@@ -59,24 +59,30 @@ class GameState:
             cost += self.cost_by_type[amphi[0]] * (len(self.paths[(curloc, tarloc)]) - 1)
         return cost
 
-    def can_move(self, amphipod, curloc, tarloc):
-        target_allowed = tarloc in self.allowed_dests
-        in_hallway = curloc[0] == "H"
-        not_intra_hallway_or_room_to_room = curloc[0] != tarloc[0]
-        path_is_free = all(self.map[c] is None for c in self.paths[(curloc, tarloc)][1:])
+    def should_stay_locked(self, amphipod, curloc, tarloc):
         correct_rooms = amphipod_color_rooms(self.slots, amphipod)
-        empty_correct_rooms = [r[1] for r in correct_rooms if self.map[r] is None]
-        room_is_good = tarloc[0] == "H" or (
-            tarloc[0] == amphipod[0]
-            and tarloc[1] ==  "?" if not empty_correct_rooms else max(empty_correct_rooms)
-            and all(self.map[room] is None or self.map[room] == room[0] for room in correct_rooms)
-        )
-        should_stay_locked = (
+        return (
             curloc[0] == amphipod
             and all(self.map[room] == room[0] for room in correct_rooms if room[1] > curloc[1])
         )
-        return not_intra_hallway_or_room_to_room and target_allowed and path_is_free and room_is_good and not should_stay_locked
 
+    def room_is_good(self, amphipod, curloc, tarloc):
+        correct_rooms = amphipod_color_rooms(self.slots, amphipod)
+        empty_correct_rooms = [r[1] for r in correct_rooms if self.map[r] is None]
+        return tarloc[0] == "H" or (
+            tarloc[0] == amphipod[0]
+            and tarloc[1] == "?" if not empty_correct_rooms else max(empty_correct_rooms)
+            and all(self.map[room] is None or self.map[room] == room[0] for room in correct_rooms)
+        )
+
+    def can_move(self, amphipod, curloc, tarloc):
+        if tarloc in self.allowed_dests and curloc[0] != tarloc[0]:
+            return (
+                not self.should_stay_locked(amphipod, curloc, tarloc)
+                and all(self.map[c] is None for c in self.paths[(curloc, tarloc)][1:]) # path is free
+                and self.room_is_good(amphipod, curloc, tarloc)
+            )
+        return False
     def play(self, move):
         amphipod, curloc, tarloc = move
         self.map[tarloc] = amphipod
@@ -124,10 +130,12 @@ def gen_all_states(initial_state):
     q = [initial_state]
     seen = set()
     transitions = defaultdict(lambda :{})
+    i = 0
     while q:
+        i += 1
         state = q.pop()
         state_sign = state.signature()
-        print(len(transitions), len(q), len(seen))
+        # print(i, len(transitions), len(q), len(seen))
         if state_sign not in seen:
             for move in state.possible_moves():
                 state.play(move)
@@ -152,10 +160,16 @@ def main():
         ("A", "D2")
     }
 
+    inpt = (('C', 'A1'), ('B', 'A2'), ('D', 'B1'), ('A', 'B2'), ('A', 'C1'), ('D', 'C2'), ('B', 'D1'), ('C', 'D2'))
     print("--- computing transitions between all states ---")
     initial_gs = GameState(inpt)
     initial_gs_sign = initial_gs.signature()
     transitions = gen_all_states(initial_gs)
+
+    # print("--- print graph ---")
+    # for source, edges in transitions.items():
+    #     for dest, distance in edges.items():
+    #         print(source, dest, distance)
     print("--- dijkstra ---")
     wanted_position = (
         ("A1", "A"),
