@@ -20,9 +20,10 @@ class GameState:
     rooms = ["A1", "A2", "B1", "B2", "C1", "C2", "D1", "D2"]
     paths = hlp.compute_paths()
     slots = frozenset(hallway + rooms)
+    cost_by_type = { "A" : 1, "B" : 10, "C" : 1000, "D" : 1000 }
 
     def clone(self):
-        return GameState([ (v, k) for k, v in self.map.items() if v is not None])
+        return GameState([(v, k) for k, v in self.map.items() if v is not None])
 
     def __init__(self, positions):
         _, position_values = zip(*positions)
@@ -32,7 +33,7 @@ class GameState:
         self.map = defaultdict(lambda: None, { v: k for k, v in positions})
 
     def signature(self):
-        return tuple([(k, v) for k, v in self.map.items() if v])
+        return tuple(sorted([(k, v) for k, v in self.map.items() if v]))
 
     def possible_moves(self):
         moves = []
@@ -48,11 +49,14 @@ class GameState:
         to_check = ["A1", "A2", "B1", "B2", "C1", "C2", "D1", "D2"]
         return all(self.map[loc] == loc[0] for loc in to_check)
 
+    def move_cost(self, move):
+        amphipod, start, dest = move
+        return self.cost_by_type[amphipod] * (len(self.paths[(start, dest)]) - 1)
+
     def total_cost(self):
         cost = 0
-        cost_by_type = { "A" : 1, "B" : 10, "C" : 1000, "D" : 1000 }
         for amphi, curloc, tarloc in self.history:
-            cost += cost_by_type[amphi[0]] * (len(self.paths[(curloc, tarloc)]) - 1)
+            cost += self.cost_by_type[amphi[0]] * (len(self.paths[(curloc, tarloc)]) - 1)
         return cost
 
     def can_move(self, amphipod, curloc, tarloc):
@@ -130,9 +134,11 @@ def gen_all_states(initial_state):
                 next_sign = state.signature()
                 if not next_sign in seen:
                     q.append(state.clone())
-                transitions[state_sign][next_sign] = move
+                transitions[state_sign][next_sign] = state.move_cost(move)
+                transitions[next_sign][state_sign] = state.move_cost(move)
                 state.unplay(move)
             seen.add(state_sign)
+    return transitions
 
 def main():
     inpt = {
@@ -146,10 +152,23 @@ def main():
         ("A", "D2")
     }
 
-    # gs = GameState(inpt)
-    # moves = gs.possible_moves()
-    # solve(inpt)
-    gen_all_states(GameState(inpt))
+    print("--- computing transitions between all states ---")
+    initial_gs = GameState(inpt)
+    initial_gs_sign = initial_gs.signature()
+    transitions = gen_all_states(initial_gs)
+    print("--- dijkstra ---")
+    wanted_position = (
+        ("A1", "A"),
+        ("A2", "A"),
+        ("B1", "B"),
+        ("B2", "B"),
+        ("C1", "C"),
+        ("C2", "C"),
+        ("D1", "D"),
+        ("D2", "D")
+    )
+    distances, parents = hlp.dijkstra(transitions, initial_gs_sign)
+    print(distances[wanted_position])
     # print(moves)
 
 if __name__ == '__main__':
