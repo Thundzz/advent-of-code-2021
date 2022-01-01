@@ -20,10 +20,10 @@ def amphipod_color_rooms(slots, amphipod):
 class GameState:
     hallway = list(map(lambda x: "H" + str(x), range(1,10))) + ["HA"]
     rooms = [
-        "A1", "A2", "A3", "A4",
-        "B1", "B2", "B3", "B4",
-        "C1", "C2", "C3", "C4",
-        "D1", "D2", "D3", "D4"
+        "A1", "A2", # "A3", "A4",
+        "B1", "B2", # "B3", "B4",
+        "C1", "C2", # "C3", "C4",
+        "D1", "D2", # "D3", "D4"
     ]
     slots = frozenset(hallway + rooms)
     cost_by_type = { "A" : 1, "B" : 10, "C" : 100, "D" : 1000 }
@@ -32,7 +32,11 @@ class GameState:
         return GameState([(v, k) for k, v in self.map.items() if v is not None], self.paths)
 
     def __lt__(self, other):
-        return 1
+        return self.score() >= other.score()
+
+    def score(self):
+        return len([self.map[room] for room in self.rooms if self.map[room] and self.map[room] == room[0]])
+
     def __init__(self, positions, paths):
         _, position_values = zip(*positions)
         self.paths = paths
@@ -108,7 +112,7 @@ def dijkstra(st, tar):
     pq = [(0, st)]
     maxi_dist = 0
     while len(pq) > 0:
-        print(len(pq), maxi_dist)
+        # print(len(pq), maxi_dist)
         d, state = heapq.heappop(pq)
         state_sign = state.signature()
         if d > distances[state_sign]:
@@ -118,11 +122,13 @@ def dijkstra(st, tar):
             weight = state.move_cost(move)
             neighbor.play(move)
             distance = d + weight
+            # print(maxi_dist, distance)
             next_sign = neighbor.signature()
+            # print(tar, next_sign)
             if tar == next_sign:
                 print(f"Found one path to target. Distance: {distance}")
-            if distance >= 10000:
-                continue
+            # if distance >= 15000:
+            #     continue
             if distance < distances[next_sign]:
                 parents[next_sign] = state.signature()
                 distances[next_sign] = distance
@@ -133,39 +139,39 @@ def dijkstra(st, tar):
 def main():
     inpt = {
         ("B", "A1"),
-        ("A", "A4"),
+        ("A", "A2"),
         ("C", "B1"),
-        ("D", "B4"),
+        ("D", "B2"),
         ("B", "C1"),
-        ("C", "C4"),
+        ("C", "C2"),
         ("D", "D1"),
-        ("A", "D4"),
-        ("D", "A2"),
-        ("D", "A3"),
-        ("C", "B2"),
-        ("B", "B3"),
-        ("B", "C2"),
-        ("A", "C3"),
         ("A", "D2"),
-        ("C", "D3")
+        # ("D", "A2"),
+        # ("D", "A3"),
+        # ("C", "B2"),
+        # ("B", "B3"),
+        # ("B", "C2"),
+        # ("A", "C3"),
+        # ("A", "D2"),
+        # ("C", "D3")
     }
     wanted_position = (
         ("A1", "A"),
         ("A2", "A"),
-        ("A3", "A"),
-        ("A4", "A"),
+        # ("A3", "A"),
+        # ("A4", "A"),
         ("B1", "B"),
         ("B2", "B"),
-        ("B3", "B"),
-        ("B4", "B"),
+        # ("B3", "B"),
+        # ("B4", "B"),
         ("C1", "C"),
         ("C2", "C"),
-        ("C3", "C"),
-        ("C4", "C"),
+        # ("C3", "C"),
+        # ("C4", "C"),
         ("D1", "D"),
         ("D2", "D"),
-        ("D3", "D"),
-        ("D4", "D")
+        # ("D3", "D"),
+        # ("D4", "D")
     )
     res = dijkstra(GameState(inpt, hlp.large_graph_paths), wanted_position)
 
