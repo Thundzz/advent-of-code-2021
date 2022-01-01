@@ -12,7 +12,7 @@ let's denote hallway places h0 to ha
 and rooms A1, A2, B1, B2, C1, C2, D1, D2
 """
 
-graphText = """
+small_graph = """
 A2 -- A1
 C2 -- C1
 D2 -- D1
@@ -32,6 +32,36 @@ B1 -- H4
 C1 -- H6
 D1 -- H8
 """
+
+large_graph = """
+A4 -- A3
+A3 -- A2
+A2 -- A1
+C4 -- C3
+C3 -- C2
+C2 -- C1
+D4 -- D3
+D3 -- D2
+D2 -- D1
+B4 -- B3
+B3 -- B2
+B2 -- B1
+H0 -- H1
+H1 -- H2
+H2 -- H3
+H3 -- H4
+H4 -- H5
+H5 -- H6
+H6 -- H7
+H7 -- H8
+H8 -- H9
+H9 -- HA
+A1 -- H2
+B1 -- H4
+C1 -- H6
+D1 -- H8
+"""
+
 
 def parse(text):
     edges = [
@@ -76,7 +106,7 @@ def find_path(parents, start, target):
     return path
 
 
-def compute_paths():
+def compute_paths(graphText):
     edges = parse(graphText)
     graph = build_graph(edges)
 
@@ -87,3 +117,6 @@ def compute_paths():
             path = find_path(parents, v1, v2)
             paths[(v1, v2)] = list(reversed(path))
     return paths
+
+small_graph_paths = compute_paths(small_graph)
+large_graph_paths = compute_paths(large_graph)

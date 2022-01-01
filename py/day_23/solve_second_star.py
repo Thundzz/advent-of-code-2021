@@ -1,6 +1,8 @@
 import helper as hlp
 from collections import defaultdict
 from functools import lru_cache
+import heapq
+
 """
 #0123456789a#
 #hhhhhhhhhhh#
@@ -18,20 +20,22 @@ def amphipod_color_rooms(slots, amphipod):
 class GameState:
     hallway = list(map(lambda x: "H" + str(x), range(1,10))) + ["HA"]
     rooms = [
-        "A1", "A2", 
-        "B1", "B2", 
-        "C1", "C2", 
-        "D1", "D2"
+        "A1", "A2", "A3", "A4",
+        "B1", "B2", "B3", "B4",
+        "C1", "C2", "C3", "C4",
+        "D1", "D2", "D3", "D4"
     ]
-    paths = hlp.small_graph_paths
     slots = frozenset(hallway + rooms)
     cost_by_type = { "A" : 1, "B" : 10, "C" : 100, "D" : 1000 }
 
     def clone(self):
-        return GameState([(v, k) for k, v in self.map.items() if v is not None])
+        return GameState([(v, k) for k, v in self.map.items() if v is not None], self.paths)
 
-    def __init__(self, positions):
+    def __lt__(self, other):
+        return 1
+    def __init__(self, positions, paths):
         _, position_values = zip(*positions)
+        self.paths = paths
         self.allowed_dests = set(self.slots) - {"H2", "H4", "H6", "H8"} # CONST
         self.currently_empty = self.slots - set(position_values)
         self.history = []
@@ -97,64 +101,75 @@ class GameState:
         self.history.pop()
 
 
-def gen_all_states(initial_state):
-    q = [initial_state]
-    seen = set()
-    transitions = defaultdict(lambda :{})
-    i = 0
-    while q:
-        i += 1
-        state = q.pop()
+def dijkstra(st, tar):
+    distances = defaultdict(lambda: float('inf'))
+    distances[st.signature()] = 0
+    parents = {st.signature(): st.signature()}
+    pq = [(0, st)]
+    maxi_dist = 0
+    while len(pq) > 0:
+        print(len(pq), maxi_dist)
+        d, state = heapq.heappop(pq)
         state_sign = state.signature()
-        # print(i, len(transitions), len(q), len(seen))
-        if state_sign not in seen:
-            for move in state.possible_moves():
-                state.play(move)
-                next_sign = state.signature()
-                if not next_sign in seen:
-                    q.append(state.clone())
-                transitions[state_sign][next_sign] = state.move_cost(move)
-                transitions[next_sign][state_sign] = state.move_cost(move)
-                state.unplay(move)
-            seen.add(state_sign)
-    return transitions
+        if d > distances[state_sign]:
+            continue
+        for move in state.possible_moves():
+            neighbor = state.clone()
+            weight = state.move_cost(move)
+            neighbor.play(move)
+            distance = d + weight
+            next_sign = neighbor.signature()
+            if tar == next_sign:
+                print(f"Found one path to target. Distance: {distance}")
+            if distance >= 10000:
+                continue
+            if distance < distances[next_sign]:
+                parents[next_sign] = state.signature()
+                distances[next_sign] = distance
+                maxi_dist = max(maxi_dist, distance)
+                heapq.heappush(pq, (distance, neighbor))
+    return distances, parents
 
 def main():
     inpt = {
         ("B", "A1"),
-        ("A", "A2"),
+        ("A", "A4"),
         ("C", "B1"),
-        ("D", "B2"),
+        ("D", "B4"),
         ("B", "C1"),
-        ("C", "C2"),
+        ("C", "C4"),
         ("D", "D1"),
-        ("A", "D2")
+        ("A", "D4"),
+        ("D", "A2"),
+        ("D", "A3"),
+        ("C", "B2"),
+        ("B", "B3"),
+        ("B", "C2"),
+        ("A", "C3"),
+        ("A", "D2"),
+        ("C", "D3")
     }
-
-    inpt = (('C', 'A1'), ('B', 'A2'), ('D', 'B1'), ('A', 'B2'), ('A', 'C1'), ('D', 'C2'), ('B', 'D1'), ('C', 'D2'))
-    print("--- computing transitions between all states ---")
-    initial_gs = GameState(inpt)
-    initial_gs_sign = initial_gs.signature()
-    transitions = gen_all_states(initial_gs)
-
-    # print("--- print graph ---")
-    # for source, edges in transitions.items():
-    #     for dest, distance in edges.items():
-    #         print(source, dest, distance)
-    print("--- dijkstra ---")
     wanted_position = (
         ("A1", "A"),
         ("A2", "A"),
+        ("A3", "A"),
+        ("A4", "A"),
         ("B1", "B"),
         ("B2", "B"),
+        ("B3", "B"),
+        ("B4", "B"),
         ("C1", "C"),
         ("C2", "C"),
+        ("C3", "C"),
+        ("C4", "C"),
         ("D1", "D"),
-        ("D2", "D")
+        ("D2", "D"),
+        ("D3", "D"),
+        ("D4", "D")
     )
-    distances, parents = hlp.dijkstra(transitions, initial_gs_sign)
-    print(distances[wanted_position])
-    # print(moves)
+    res = dijkstra(GameState(inpt, hlp.large_graph_paths), wanted_position)
+
+
 
 if __name__ == '__main__':
     main()
