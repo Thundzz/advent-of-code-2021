@@ -2,7 +2,7 @@ import helper as hlp
 from collections import defaultdict
 from functools import lru_cache
 import heapq
-
+import sys
 """
 #0123456789a#
 #hhhhhhhhhhh#
@@ -15,7 +15,7 @@ and rooms A1, A2, B1, B2, C1, C2, D1, D2
 """
 @lru_cache(maxsize=None)
 def amphipod_color_rooms(rooms, amphipod):
-        return [s for s in rooms if amphipod[0] == s[0]]
+        return sorted([s for s in rooms if amphipod[0] == s[0]], reverse=True)
 
 class GameState:
     hallway = list(map(lambda x: "H" + str(x), range(0,10))) + ["HA"]
@@ -26,9 +26,11 @@ class GameState:
         "C1", "C2", "C3", "C4",
         "D1", "D2", "D3", "D4"
     ])
+    rooms_list = list(rooms)
     slots = frozenset(hallway + list(rooms))
     cost_by_type = { "A" : 1, "B" : 10, "C" : 100, "D" : 1000 }
     allowed_dests = set(slots) - {"H2", "H4", "H6", "H8"} # CONST
+    amphipod_mapping = defaultdict(lambda : 255, { "A": 0, "B": 1, "C": 2, "D": 3 })
 
     def clone(self):
         return GameState([(v, k) for k, v in self.map.items() if v is not None], self.paths)
@@ -43,9 +45,32 @@ class GameState:
         self.map = defaultdict(lambda: None, { v: k for k, v in positions})
 
     def signature(self):
-        return tuple((r, self.map[r]) for r in list(self.rooms) + self.hallway if self.map[r])
-        # return tuple(sorted([(k, v) for k, v in self.map.items() if v]))
+        # t = tuple((r, self.map[r]) for r in self.rooms_list + self.hallway if self.map[r])
+        t = bytes(bytearray([self.amphipod_mapping[self.map[r]] for r in self.rooms_list + self.hallway]))
+        # print(sys.getsizeof(t))
+        return t
 
+    def next_available_spot(self, curloc):
+        amphipod = self.map[curloc]
+        if amphipod:
+            amphi_rooms = amphipod_color_rooms(self.rooms, amphipod)
+            try:
+                chosen_room =  next(r for r in amphi_rooms if self.map[r] is None or self.map[r][0] != r[0])
+                return chosen_room
+            except StopIteration:
+                return curloc
+        else:
+            return curloc
+
+    def approx_cost(self):
+        cost = 0
+        for curloc in self.slots:
+            amphipod = self.map[curloc]
+            if amphipod and not self.should_stay_locked(amphipod, curloc):
+                dest = self.next_available_spot(curloc)
+                cost_mod = len(self.paths[(curloc, dest)]) - 1
+                cost += self.cost_by_type[amphipod] * cost_mod
+        return cost
 
     def possible_moves(self):
         moves = []
@@ -65,7 +90,7 @@ class GameState:
         amphipod, start, dest = move
         return self.cost_by_type[amphipod] * (len(self.paths[(start, dest)]) - 1)
 
-    def should_stay_locked(self, amphipod, curloc, tarloc):
+    def should_stay_locked(self, amphipod, curloc):
         correct_rooms = amphipod_color_rooms(self.slots, amphipod)
         return (
             curloc[0] == amphipod
@@ -85,7 +110,7 @@ class GameState:
         if tarloc in self.allowed_dests and curloc[0] != tarloc[0]:
             return (
                 all(self.map[c] is None for c in self.paths[(curloc, tarloc)][1:]) # path is free
-                and not self.should_stay_locked(amphipod, curloc, tarloc)
+                and not self.should_stay_locked(amphipod, curloc)
                 and self.room_is_good(amphipod, curloc, tarloc)
             )
         return False
@@ -96,38 +121,37 @@ class GameState:
         self.map[curloc] = None
 
 
-def dijkstra(st, tar):
+def astar(st, tar):
+    tar_sign = tar.signature()
     distances = defaultdict(lambda: float('inf'))
-    distances[st.signature()] = 0
-    parents = {st.signature(): st.signature()}
-    pq = [(0, st)]
-    maxi_dist = 0
-    found_dist = None
+    fdist_estimate = defaultdict(lambda: float('inf'))
+    st_sign = st.signature()
+    distances[st_sign] = 0
+    fdist_estimate[st_sign] = st.approx_cost()
+    # parents = {st.signature(): st.signature()}
+    pq = [(fdist_estimate[st_sign], st)]
+    pqset = set([st_sign])
     while len(pq) > 0:
-        # print(len(pq), maxi_dist)
-        d, state = heapq.heappop(pq)
+        _, state = heapq.heappop(pq)
+        # print(pqset)
         state_sign = state.signature()
-        if d > distances[state_sign]:
-            continue
+        pqset.remove(state_sign)
         for move in state.possible_moves():
             neighbor = state.clone()
-            weight = state.move_cost(move)
+            neighbor_distance = neighbor.move_cost(move)
             neighbor.play(move)
-            distance = d + weight
-            # print(maxi_dist, distance)
+            distance = distances[state_sign] + neighbor_distance
             next_sign = neighbor.signature()
-            # print(tar, next_sign)
-            if tar == next_sign:
+            if tar_sign == next_sign:
                 print(f"Found one path to target. Distance: {distance}")
-                found_dist = distance if not found_dist else min(distance, found_dist)
-            if distance > 60000 or (found_dist and distance >= found_dist):
-                continue
             if distance < distances[next_sign]:
-                parents[next_sign] = state.signature()
                 distances[next_sign] = distance
-                maxi_dist = max(maxi_dist, distance)
-                heapq.heappush(pq, (distance, neighbor))
-    return distances, parents
+                fdist_estimate[next_sign] = distance + neighbor.approx_cost()
+                # if not neighbor in pqset:
+                if not next_sign in pqset:
+                    heapq.heappush(pq, (fdist_estimate[next_sign], neighbor))
+                    pqset.add(next_sign)
+    return distances
 
 def main():
     # inpt = {
@@ -169,24 +193,24 @@ def main():
         ("C", "D3"),
     )
     wanted_position = (
-        ("A1", "A"),
-        ("A2", "A"),
-        ("A3", "A"),
-        ("A4", "A"),
-        ("B1", "B"),
-        ("B2", "B"),
-        ("B3", "B"),
-        ("B4", "B"),
-        ("C1", "C"),
-        ("C2", "C"),
-        ("C3", "C"),
-        ("C4", "C"),
-        ("D1", "D"),
-        ("D2", "D"),
-        ("D3", "D"),
-        ("D4", "D")
+        ("A", "A1"),
+        ("A", "A2"),
+        ("A", "A3"),
+        ("A", "A4"),
+        ("B", "B1"),
+        ("B", "B2"),
+        ("B", "B3"),
+        ("B", "B4"),
+        ("C", "C1"),
+        ("C", "C2"),
+        ("C", "C3"),
+        ("C", "C4"),
+        ("D", "D1"),
+        ("D", "D2"),
+        ("D", "D3"),
+        ("D", "D4")
     )
-    res = dijkstra(GameState(inpt, hlp.large_graph_paths), wanted_position)
+    res = astar(GameState(inpt, hlp.large_graph_paths), GameState(wanted_position, hlp.large_graph_paths))
 
 
 
